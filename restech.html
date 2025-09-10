@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ResTech Residence — Soluciones digitales para residencias</title>
+  <meta name="description" content="Gestión simple de RRHH, ocupación y comunicación para residencias. Sin complicaciones." />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 64 64%27><text y=%2750%27 x=%2710%27 font-size=%2750%27>🏥</text></svg>">
+  <style>
+    :root{
+      --bg:#0b1526;
+      --bg2:#0e1b33;
+      --acc:#2ea6ff;
+      --acc2:#7fd1ff;
+      --txt:#eaf2ff;
+      --mut:#9fb2cc;
+      --card:#111d35;
+      --ok:#2ecc71;
+    }
+    *{box-sizing:border-box}
+    html,body{margin:0;padding:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Inter,Arial,sans-serif;color:var(--txt);background:linear-gradient(180deg,var(--bg),var(--bg2));}
+    a{color:var(--acc);text-decoration:none}
+    a:hover{text-decoration:underline}
+    .container{max-width:1060px;margin:0 auto;padding:16px}
+    .nav{display:flex;align-items:center;justify-content:space-between;padding:10px 0}
+    .brand{display:flex;align-items:center;gap:10px;font-weight:800;letter-spacing:.3px}
+    .logo{width:34px;height:34px;display:grid;place-items:center;border-radius:10px;background:linear-gradient(135deg,var(--acc),var(--acc2));color:#001b2e;font-weight:900}
+    .nav a.btn{background:var(--acc);color:#001b2e;padding:10px 14px;border-radius:12px;font-weight:700;box-shadow:0 6px 20px rgba(46,166,255,.25)}
+    .hero{position:relative;overflow:hidden;border-radius:20px;background:
+      radial-gradient(1200px 400px at 80% -10%,rgba(46,166,255,.25),transparent 60%),
+      radial-gradient(900px 300px at -10% 20%,rgba(127,209,255,.18),transparent 60%),
+      linear-gradient(135deg,#0d1a31 0%,#0f203f 100%);
+      padding:48px 22px; margin-top:12px;
+      border:1px solid rgba(255,255,255,.06);
+      box-shadow:0 10px 30px rgba(0,0,0,.35), inset 0 0 0 1px rgba(255,255,255,.03);
+    }
+    .hero-grid{display:grid;grid-template-columns:1.1fr .9fr;gap:26px;align-items:center}
+    .h-eyebrow{display:inline-block;padding:6px 10px;border-radius:999px;background:rgba(127,209,255,.12);border:1px solid rgba(127,209,255,.35);font-size:12px;color:var(--acc2)}
+    h1{margin:.4rem 0 .6rem;font-size:clamp(28px,4vw,46px);line-height:1.05}
+    .lead{color:var(--mut);font-size:clamp(14px,2.2vw,18px)}
+    .cta{display:flex;gap:12px;margin-top:18px;flex-wrap:wrap}
+    .btn{display:inline-flex;align-items:center;gap:8px;padding:12px 16px;border-radius:14px;border:1px solid rgba(255,255,255,.08);background:#0f203f}
+    .btn.primary{background:var(--acc);color:#001b2e;border-color:transparent;font-weight:800}
+    .btn.ghost:hover{border-color:rgba(255,255,255,.2)}
+    .mock{
+      border-radius:16px;background:linear-gradient(180deg,#091427,#0b1830);
+      border:1px solid rgba(255,255,255,.06);padding:16px;
+      box-shadow:0 12px 32px rgba(0,0,0,.35), inset 0 0 0 1px rgba(255,255,255,.03);
+    }
+    .mock .bar{display:flex;gap:8px;margin-bottom:12px}
+    .dot{width:10px;height:10px;border-radius:999px;background:#394b6a}
+    .screen{
+      border-radius:12px;overflow:hidden;border:1px solid rgba(255,255,255,.06)
+    }
+    .screen .top{display:flex;justify-content:space-between;align-items:center;padding:10px 12px;background:#0e1b2f;border-bottom:1px solid rgba(255,255,255,.06)}
+    .pill{font-size:12px;border-radius:999px;padding:6px 10px;background:rgba(46,166,255,.12);color:var(--acc2)}
+    .tbl{width:100%;border-collapse:collapse}
+    .tbl th,.tbl td{padding:10px;border-bottom:1px solid rgba(255,255,255,.06);font-size:14px;text-align:left}
+    .tag{font-size:11px;padding:4px 8px;border-radius:999px;background:rgba(255,255,255,.06);display:inline-block}
+    .kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:16px}
+    .card{background:var(--card);border:1px solid rgba(255,255,255,.06);border-radius:14px;padding:14px}
+    .card h3{margin:.2rem 0 .4rem;font-size:18px}
+    .grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:20px}
+    .feat{background:linear-gradient(180deg,#0e1b33,#0d1930);border:1px solid rgba(255,255,255,.06);border-radius:14px;padding:16px}
+    .feat h4{margin:.2rem 0 .2rem;font-size:16px}
+    .icon{width:28px;height:28px}
+    .section{padding:34px 0}
+    .section h2{font-size:26px;margin:0 0 8px}
+    .mut{color:var(--mut)}
+    .cta-band{display:flex;align-items:center;justify-content:space-between;gap:16px;background:linear-gradient(135deg,#102247,#0b1a34);border:1px solid rgba(255,255,255,.08);border-radius:16px;padding:16px;margin-top:12px}
+    .footer{color:#9fb2cc80;font-size:13px;padding:24px 0}
+    @media (max-width:860px){
+      .hero-grid{grid-template-columns:1fr}
+      .grid3{grid-template-columns:1fr}
+      .kpis{grid-template-columns:1fr}
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <nav class="nav">
+      <div class="brand">
+        <div class="logo">R</div>
+        <div>ResTech Residence</div>
+      </div>
+      <a class="btn" href="#contacto">Contacto</a>
+    </nav>
+
+    <header class="hero">
+      <div class="hero-grid">
+        <div>
+          <span class="h-eyebrow">Herramienta operativa para residencias</span>
+          <h1>RRHH, ocupación y web en un solo lugar.</h1>
+          <p class="lead">Fichajes, cambios de turno, ocupación por habitaciones y una web clara para familias. Sin curvas de aprendizaje.</p>
+          <div class="cta">
+            <a class="btn primary" href="#contacto">Contacta con nosotros</a>
+            <a class="btn ghost" href="#modulos">Ver módulos</a>
+          </div>
+        </div>
+        <div class="mock" id="demo">
+          <div class="bar"><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>
+          <div class="screen">
+            <div class="top">
+              <strong>Panel — ResTech</strong>
+              <span class="pill">Hoy</span>
+            </div>
+            <table class="tbl">
+              <thead>
+                <tr><th>Empleado</th><th>Turno</th><th>Estado</th><th></th></tr>
+              </thead>
+              <tbody>
+                <tr><td>Ana</td><td>Mañana</td><td><span class="tag">Fichada</span></td><td>✔</td></tr>
+                <tr><td>Jordi</td><td>Tarde</td><td><span class="tag">Pendiente</span></td><td>• • •</td></tr>
+                <tr><td>Luisa</td><td>Noche</td><td><span class="tag">Descanso</span></td><td>—</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="kpis">
+            <div class="card"><div class="mut">Ocupación</div><h3>96%</h3></div>
+            <div class="card"><div class="mut">Turnos cubiertos</div><h3>28/30</h3></div>
+            <div class="card"><div class="mut">Incidencias</div><h3 style="color:var(--ok)">0 abiertas</h3></div>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <section class="section" id="modulos">
+      <h2>Módulos</h2>
+      <p class="mut">Empieza por uno y añade el resto cuando lo necesites.</p>
+      <div class="grid3">
+        <article class="feat">
+          <svg class="icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+            <path d="M4 6h16M4 12h16M4 18h10" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+          </svg>
+          <h4>RRHH & Fichajes</h4>
+          <p class="mut">Entradas/salidas, cambios de turno y personal activo en tiempo real.</p>
+        </article>
+        <article class="feat">
+          <svg class="icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M3 20h18M6 16h12l2-8H4l2 8Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            <circle cx="9" cy="9" r="2" stroke="currentColor" stroke-width="2"/>
+          </svg>
+          <h4>Ocupación & Habitaciones</h4>
+          <p class="mut">Quién entra, quién sale y qué camas quedan libres. Exportable a Excel.</p>
+        </article>
+        <article class="feat">
+          <svg class="icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M4 5h16v14H4z" stroke="currentColor" stroke-width="2"/>
+            <path d="M4 9h16" stroke="currentColor" stroke-width="2"/>
+          </svg>
+          <h4>Web para familias</h4>
+          <p class="mut">Página clara para consultas, visitas y documentación. Sin tecnicismos.</p>
+        </article>
+      </div>
+      <div class="cta-band">
+        <div>
+          <strong>¿Tienes otra necesidad?</strong>
+          <div class="mut">Desarrollamos pequeños extras a medida (informes, integraciones, etc.).</div>
+        </div>
+        <a class="btn primary" href="#contacto">Pedir propuesta</a>
+      </div>
+    </section>
+
+    <section class="section" id="precios">
+      <h2>Precios simples</h2>
+      <p class="mut">Empieza gratis con demo. Si encaja, te paso presupuesto cerrado.</p>
+      <div class="grid3">
+        <div class="card">
+          <h3>Demo</h3>
+          <p class="mut">Subimos tu demo en 24–48h y la pruebas con tu equipo.</p>
+          <ul class="mut">
+            <li>• Panel de prueba</li>
+            <li>• 1 módulo activo</li>
+            <li>• Soporte por email</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h3>Essentials</h3>
+          <p class="mut">Para centros pequeños. RRHH u Ocupación.</p>
+          <ul class="mut">
+            <li>• 1–2 módulos</li>
+            <li>• Exportación CSV</li>
+            <li>• Soporte básico</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h3>Plus</h3>
+          <p class="mut">Todo en uno con pequeños extras.</p>
+          <ul class="mut">
+            <li>• 3 módulos</li>
+            <li>• Ajustes a medida</li>
+            <li>• Soporte priorizado</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="contacto">
+      <h2>Contacto</h2>
+      <p class="mut">Dime tu necesidad y te respondo con un prototipo o presupuesto.</p>
+      <a class="btn primary" href="https://docs.google.com/forms/d/e/1FAIpQLScmq2RQlhO0Iu0KhUQIm7t5M-zU6ZC6Q_aM3VqLkCTAmBFUuw/viewform?usp=dialog" target="_blank" rel="noopener">
+        Rellenar formulario
+      </a>
+    </section>
+
+    <footer class="footer">
+      © 2025 ResTech Residence · Barcelona · Prototipo
+    </footer>
+  </div>
+</body>
+</html>

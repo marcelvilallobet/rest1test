@@ -1,0 +1,695 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Demo RRHH – Residencia (sin instalación)</title>
+  <!-- Tailwind via CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- React 18 & ReactDOM via CDN -->
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <!-- Babel Standalone for in-browser JSX transform -->
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <style>
+    body { background: #f8fafc; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script type="text/babel" data-presets="react">
+// === Adaptación del componente del usuario a ejecución en navegador sin build ===
+// (Eliminamos imports/exports y dejamos JSX, transformado por Babel en el navegador).
+
+function fmtDateTimeLocal(d) {
+  if (!d) return "";
+  const dt = new Date(d);
+  const pad = (n) => String(n).padStart(2, "0");
+  const yyyy = dt.getFullYear();
+  const mm = pad(dt.getMonth() + 1);
+  const dd = pad(dt.getDate());
+  const hh = pad(dt.getHours());
+  const mi = pad(dt.getMinutes());
+  return `${yyyy}-${mm}-${dd}T${hh}:${mi}`;
+}
+
+function parseLocalToISO(localStr) {
+  if (!localStr) return null;
+  const [date, time] = localStr.split("T");
+  const [y, m, d] = date.split("-").map(Number);
+  const [hh, mm] = time.split(":").map(Number);
+  const dt = new Date(y, m - 1, d, hh, mm);
+  return dt.toISOString();
+}
+
+function dayKey(d) {
+  const dt = new Date(d);
+  return dt.toISOString().slice(0, 10); // YYYY-MM-DD
+}
+
+function minutesDiff(a, b) {
+  return Math.round((b - a) / 60000);
+}
+
+function classBtn(primary = true) {
+  return (
+    (primary
+      ? "bg-black text-white hover:bg-gray-800"
+      : "bg-white text-gray-900 hover:bg-gray-100 border") +
+    " rounded-2xl px-3 py-2 text-sm font-medium shadow-sm transition"
+  );
+}
+
+function Pill({ active, onClick, children }) {
+  return (
+    <button
+      onClick={onClick}
+      className={
+        (active
+          ? "bg-gray-900 text-white"
+          : "bg-white text-gray-700 hover:bg-gray-100 border") +
+        " px-3 py-2 rounded-full text-sm font-medium shadow-sm"
+      }
+    >
+      {children}
+    </button>
+  );
+}
+
+const seedEmployees = [
+  { id: "e1", name: "Laura Pérez", role: "Enfermera" },
+  { id: "e2", name: "Jordi Serra", role: "Auxiliar" },
+  { id: "e3", name: "Aina Vidal", role: "Gerocultora" },
+  { id: "e4", name: "Marcos Ruiz", role: "Coordinador" },
+];
+
+const shiftLetters = ["M", "T", "N", "Libre"]; // Mañana, Tarde, Noche, Libre
+
+function generateDefaultWeek(employees) {
+  const now = new Date();
+  const day = now.getDay(); // 0=domingo
+  const diffToMonday = (day + 6) % 7; // 0 si lunes, 6 si domingo
+  const monday = new Date(now);
+  monday.setDate(now.getDate() - diffToMonday);
+  monday.setHours(0, 0, 0, 0);
+
+  const days = Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(monday);
+    d.setDate(monday.getDate() + i);
+    return dayKey(d);
+  });
+
+  const shifts = {};
+  for (const dk of days) {
+    shifts[dk] = {};
+    employees.forEach((e, idx) => {
+      const letter = shiftLetters[(idx + days.indexOf(dk)) % 4];
+      shifts[dk][e.id] = letter;
+    });
+  }
+  return shifts;
+}
+
+function App() {
+  const { useEffect, useMemo, useState } = React;
+  const [tab, setTab] = useState("fichaje");
+  const [employees, setEmployees] = useState(seedEmployees);
+  const [newEmpName, setNewEmpName] = useState("");
+  const [newEmpRole, setNewEmpRole] = useState("Auxiliar");
+  const [punches, setPunches] = useState([]); // {id, employeeId, in, out, note, corrected}
+  const [selectedEmpId, setSelectedEmpId] = useState(employees[0]?.id || "");
+  const [requests, setRequests] = useState([]); // {id, employeeId, type, from, to, notes, status}
+  const [shifts, setShifts] = useState(() => generateDefaultWeek(seedEmployees));
+  const [shiftDate, setShiftDate] = useState(dayKey(new Date()));
+
+  // Timer para refrescar duraciones en Activos
+  const [, forceTick] = useState(0);
+  useEffect(() => {
+    const t = setInterval(() => forceTick((x) => x + 1), 30000);
+    return () => clearInterval(t);
+  }, []);
+
+  // --- Derivados ---
+  const activeByEmp = useMemo(() => {
+    const map = new Map();
+    for (const p of punches) {
+      if (p.employeeId === undefined) continue;
+      if (!map.has(p.employeeId)) map.set(p.employeeId, []);
+      map.get(p.employeeId).push(p);
+    }
+    const active = [];
+    for (const [empId, arr] of map) {
+      const last = arr[arr.length - 1];
+      if (last && last.in && !last.out) active.push({ empId, since: last.in, punchId: last.id });
+    }
+    return active;
+  }, [punches]);
+
+  const activeList = activeByEmp.map((a) => ({
+    ...a,
+    employee: employees.find((e) => e.id === a.empId),
+  }));
+
+  // --- Acciones de fichaje ---
+  function handleClockIn() {
+    if (!selectedEmpId) return;
+    const open = punches.find((p) => p.employeeId === selectedEmpId && !p.out);
+    if (open) {
+      alert("Este empleado ya está dentro.");
+      return;
+    }
+    const now = new Date().toISOString();
+    setPunches((p) => [
+      ...p,
+      { id: (crypto && crypto.randomUUID) ? crypto.randomUUID() : String(Math.random()), employeeId: selectedEmpId, in: now, out: null, note: "", corrected: false },
+    ]);
+  }
+
+  function handleClockOut() {
+    if (!selectedEmpId) return;
+    const idx = [...punches].reverse().findIndex((p) => p.employeeId === selectedEmpId && !p.out);
+    if (idx === -1) {
+      alert("No hay fichaje abierto para salir.");
+      return;
+    }
+    const realIdx = punches.length - 1 - idx;
+    const now = new Date().toISOString();
+    setPunches((arr) => arr.map((p, i) => (i === realIdx ? { ...p, out: now } : p)));
+  }
+
+  // --- Corrección de fichajes ---
+  const [editPunch, setEditPunch] = useState(null); // punch obj
+  function openEdit(p) {
+    setEditPunch({ ...p });
+  }
+  function saveEdit() {
+    if (!editPunch) return;
+    setPunches((arr) => arr.map((p) => (p.id === editPunch.id ? { ...editPunch, corrected: true } : p)));
+    setEditPunch(null);
+  }
+  function deletePunch(id) {
+    if (!confirm("¿Eliminar fichaje?")) return;
+    setPunches((arr) => arr.filter((p) => p.id !== id));
+  }
+
+  // --- Solicitudes laborales ---
+  const [reqForm, setReqForm] = useState({ type: "Vacaciones", from: "", to: "", notes: "" });
+  function addRequest() {
+    if (!selectedEmpId) return;
+    const req = {
+      id: (crypto && crypto.randomUUID) ? crypto.randomUUID() : String(Math.random()),
+      employeeId: selectedEmpId,
+      type: reqForm.type,
+      from: reqForm.from || null,
+      to: reqForm.to || null,
+      notes: reqForm.notes || "",
+      status: "Pendiente",
+      createdAt: new Date().toISOString(),
+    };
+    setRequests((r) => [req, ...r]);
+    setReqForm({ type: "Vacaciones", from: "", to: "", notes: "" });
+  }
+  function setReqStatus(id, status) {
+    setRequests((r) => r.map((x) => (x.id === id ? { ...x, status } : x)));
+  }
+
+  // --- Turnos ---
+  function setShift(empId, letter) {
+    setShifts((s) => ({ ...s, [shiftDate]: { ...(s[shiftDate] || {}), [empId]: letter } }));
+  }
+
+  const [swap, setSwap] = useState({ a: "", b: "" });
+  function swapShifts() {
+    const dayShifts = shifts[shiftDate] || {};
+    if (!swap.a || !swap.b || swap.a === swap.b) return alert("Selecciona dos personas distintas");
+    const aShift = dayShifts[swap.a] || "Libre";
+    const bShift = dayShifts[swap.b] || "Libre";
+    setShifts((s) => ({ ...s, [shiftDate]: { ...dayShifts, [swap.a]: bShift, [swap.b]: aShift } }));
+    const req = {
+      id: (crypto && crypto.randomUUID) ? crypto.randomUUID() : String(Math.random()),
+      employeeId: swap.a,
+      type: "Cambio de turno",
+      from: shiftDate,
+      to: shiftDate,
+      notes: `Intercambio con ${(employees.find((e) => e.id === swap.b)?.name || "(?)")}`,
+      status: "Aprobado",
+      createdAt: new Date().toISOString(),
+    };
+    setRequests((r) => [req, ...r]);
+    setSwap({ a: "", b: "" });
+  }
+
+  // --- Gestión de empleados (rápida) ---
+  function addEmployee() {
+    if (!newEmpName.trim()) return;
+    const id = (crypto && crypto.randomUUID) ? crypto.randomUUID() : String(Math.random());
+    const emp = { id, name: newEmpName.trim(), role: newEmpRole };
+    setEmployees((e) => [...e, emp]);
+    setNewEmpName("");
+    setShifts((s) => {
+      const copy = { ...s };
+      Object.keys(copy).forEach((d) => {
+        copy[d] = { ...copy[d], [id]: "Libre" };
+      });
+      return copy;
+    });
+  }
+
+  return (
+    <div className="min-h-screen bg-gray-50 text-gray-900">
+      <header className="sticky top-0 z-10 bg-white border-b">
+        <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
+          <h1 className="text-lg md:text-xl font-semibold">Demo RRHH – Residencia</h1>
+          <nav className="flex gap-2">
+            <Pill active={tab === "fichaje"} onClick={() => setTab("fichaje")}>Fichaje</Pill>
+            <Pill active={tab === "activos"} onClick={() => setTab("activos")}>Activos</Pill>
+            <Pill active={tab === "registros"} onClick={() => setTab("registros")}>Registros</Pill>
+            <Pill active={tab === "solicitudes"} onClick={() => setTab("solicitudes")}>Solicitudes</Pill>
+            <Pill active={tab === "turnos"} onClick={() => setTab("turnos")}>Turnos</Pill>
+          </nav>
+        </div>
+      </header>
+
+      <main className="max-w-6xl mx-auto px-4 py-6">
+        <section className="mb-6 grid md:grid-cols-2 gap-3">
+          <div className="bg-white p-4 rounded-2xl shadow-sm border">
+            <div className="flex flex-col md:flex-row md:items-end gap-3">
+              <div className="flex-1">
+                <label className="block text-xs font-medium text-gray-500">Empleado</label>
+                <select
+                  className="mt-1 w-full border rounded-xl px-3 py-2"
+                  value={selectedEmpId}
+                  onChange={(e) => setSelectedEmpId(e.target.value)}
+                >
+                  {employees.map((e) => (
+                    <option key={e.id} value={e.id}>
+                      {e.name} — {e.role}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="flex gap-2">
+                <button className={classBtn(true)} onClick={handleClockIn}>Entrar</button>
+                <button className={classBtn(false)} onClick={handleClockOut}>Salir</button>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white p-4 rounded-2xl shadow-sm border">
+            <div className="text-sm font-medium mb-2">Añadir empleado rápido</div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+              <input
+                className="border rounded-xl px-3 py-2 md:col-span-2"
+                placeholder="Nombre y apellidos"
+                value={newEmpName}
+                onChange={(e) => setNewEmpName(e.target.value)}
+              />
+              <select
+                className="border rounded-xl px-3 py-2"
+                value={newEmpRole}
+                onChange={(e) => setNewEmpRole(e.target.value)}
+              >
+                <option>Auxiliar</option>
+                <option>Enfermera</option>
+                <option>Gerocultora</option>
+                <option>Coordinador</option>
+                <option>Administración</option>
+              </select>
+              <div className="md:col-span-3 flex justify-end">
+                <button className={classBtn()} onClick={addEmployee}>Añadir</button>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {tab === "fichaje" && (
+          <section className="bg-white p-4 rounded-2xl shadow-sm border">
+            <h2 className="text-base font-semibold mb-3">Historial reciente</h2>
+            <PunchTable
+              punches={punches}
+              employees={employees}
+              onEdit={openEdit}
+              onDelete={deletePunch}
+            />
+          </section>
+        )}
+
+        {tab === "activos" && (
+          <section className="bg-white p-4 rounded-2xl shadow-sm border">
+            <h2 className="text-base font-semibold mb-4">Empleados activos ahora</h2>
+            {activeList.length === 0 ? (
+              <div className="text-sm text-gray-500">Nadie dentro ahora mismo.</div>
+            ) : (
+              <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                {activeList.map((a) => {
+                  const since = new Date(a.since);
+                  const mins = minutesDiff(since, new Date());
+                  const hrs = Math.floor(mins / 60);
+                  const rem = mins % 60;
+                  return (
+                    <div key={a.empId} className="border rounded-2xl p-4 shadow-sm bg-white">
+                      <div className="font-medium">{a.employee?.name}</div>
+                      <div className="text-xs text-gray-500">{a.employee?.role}</div>
+                      <div className="mt-2 text-sm">
+                        Dentro desde: <span className="font-mono">{fmtDateTimeLocal(a.since).replace("T", " ")}</span>
+                      </div>
+                      <div className="text-xs text-gray-600">Tiempo en centro: {hrs}h {rem}m</div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </section>
+        )}
+
+        {tab === "registros" && (
+          <section className="bg-white p-4 rounded-2xl shadow-sm border">
+            <h2 className="text-base font-semibold mb-4">Registros de fichajes</h2>
+            <PunchTable
+              punches={punches}
+              employees={employees}
+              onEdit={openEdit}
+              onDelete={deletePunch}
+              showActions
+            />
+          </section>
+        )}
+
+        {tab === "solicitudes" && (
+          <section className="bg-white p-4 rounded-2xl shadow-sm border space-y-4">
+            <h2 className="text-base font-semibold">Nueva solicitud</h2>
+            <div className="grid md:grid-cols-5 gap-2">
+              <select
+                className="border rounded-xl px-3 py-2"
+                value={reqForm.type}
+                onChange={(e) => setReqForm({ ...reqForm, type: e.target.value })}
+              >
+                <option>Vacaciones</option>
+                <option>Pausa médica</option>
+                <option>Permiso</option>
+                <option>Horas extra</option>
+                <option>Cambio de turno</option>
+              </select>
+              <input
+                type="date"
+                className="border rounded-xl px-3 py-2"
+                value={reqForm.from}
+                onChange={(e) => setReqForm({ ...reqForm, from: e.target.value })}
+              />
+              <input
+                type="date"
+                className="border rounded-xl px-3 py-2"
+                value={reqForm.to}
+                onChange={(e) => setReqForm({ ...reqForm, to: e.target.value })}
+              />
+              <input
+                placeholder="Notas (opcional)"
+                className="border rounded-xl px-3 py-2 md:col-span-2"
+                value={reqForm.notes}
+                onChange={(e) => setReqForm({ ...reqForm, notes: e.target.value })}
+              />
+              <div className="md:col-span-5 flex justify-end">
+                <button className={classBtn()} onClick={addRequest}>Enviar</button>
+              </div>
+            </div>
+
+            <h2 className="text-base font-semibold">Solicitudes</h2>
+            {requests.length === 0 ? (
+              <div className="text-sm text-gray-500">Sin solicitudes todavía.</div>
+            ) : (
+              <div className="overflow-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="text-left text-gray-500 border-b">
+                      <th className="py-2 pr-2">Empleado</th>
+                      <th className="py-2 pr-2">Tipo</th>
+                      <th className="py-2 pr-2">Desde</th>
+                      <th className="py-2 pr-2">Hasta</th>
+                      <th className="py-2 pr-2">Notas</th>
+                      <th className="py-2 pr-2">Estado</th>
+                      <th className="py-2 pr-2"></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {requests.map((r) => (
+                      <tr key={r.id} className="border-b last:border-0">
+                        <td className="py-2 pr-2">{employees.find((e) => e.id === r.employeeId)?.name}</td>
+                        <td className="py-2 pr-2">{r.type}</td>
+                        <td className="py-2 pr-2">{r.from || "-"}</td>
+                        <td className="py-2 pr-2">{r.to || "-"}</td>
+                        <td className="py-2 pr-2">{r.notes || "-"}</td>
+                        <td className="py-2 pr-2">
+                          <span className={
+                            "px-2 py-1 rounded-full text-xs " +
+                            (r.status === "Pendiente"
+                              ? "bg-yellow-100 text-yellow-800"
+                              : r.status === "Aprobado"
+                              ? "bg-green-100 text-green-800"
+                              : "bg-red-100 text-red-800")
+                          }>
+                            {r.status}
+                          </span>
+                        </td>
+                        <td className="py-2 pr-2 flex gap-2">
+                          <button className={classBtn()} onClick={() => setReqStatus(r.id, "Aprobado")}>
+                            Aprobar
+                          </button>
+                          <button className={classBtn(false)} onClick={() => setReqStatus(r.id, "Rechazado")}>
+                            Rechazar
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </section>
+        )}
+
+        {tab === "turnos" && (
+          <section className="bg-white p-4 rounded-2xl shadow-sm border space-y-4">
+            <h2 className="text-base font-semibold">Turnos por día</h2>
+            <div className="flex flex-col md:flex-row gap-2 md:items-end">
+              <div>
+                <label className="block text-xs text-gray-500">Fecha</label>
+                <input
+                  type="date"
+                  className="border rounded-xl px-3 py-2"
+                  value={shiftDate}
+                  onChange={(e) => setShiftDate(e.target.value)}
+                />
+              </div>
+              <div className="text-xs text-gray-500 md:ml-auto">
+                M = Mañana · T = Tarde · N = Noche · Libre
+              </div>
+            </div>
+
+            <div className="overflow-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-left text-gray-500 border-b">
+                    <th className="py-2 pr-2">Empleado</th>
+                    <th className="py-2 pr-2">Turno</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {employees.map((e) => (
+                    <tr key={e.id} className="border-b last:border-0">
+                      <td className="py-2 pr-2">{e.name} — <span className="text-gray-500">{e.role}</span></td>
+                      <td className="py-2 pr-2">
+                        <div className="inline-flex gap-2">
+                          {shiftLetters.map((L) => (
+                            <button
+                              key={L}
+                              onClick={() => setShift(e.id, L)}
+                              className={
+                                (shifts[shiftDate]?.[e.id] === L
+                                  ? "bg-gray-900 text-white"
+                                  : "bg-white text-gray-800 border hover:bg-gray-50") +
+                                " px-3 py-1 rounded-full text-xs shadow-sm"
+                              }
+                            >
+                              {L}
+                            </button>
+                          ))}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="pt-3 border-t">
+              <h3 className="text-sm font-semibold mb-2">Intercambio rápido</h3>
+              <div className="grid md:grid-cols-5 gap-2">
+                <select
+                  className="border rounded-xl px-3 py-2"
+                  value={swap.a}
+                  onChange={(e) => setSwap({ ...swap, a: e.target.value })}
+                >
+                  <option value="">Empleado A</option>
+                  {employees.map((e) => (
+                    <option key={e.id} value={e.id}>{e.name}</option>
+                  ))}
+                </select>
+                <select
+                  className="border rounded-xl px-3 py-2"
+                  value={swap.b}
+                  onChange={(e) => setSwap({ ...swap, b: e.target.value })}
+                >
+                  <option value="">Empleado B</option>
+                  {employees.map((e) => (
+                    <option key={e.id} value={e.id}>{e.name}</option>
+                  ))}
+                </select>
+                <div className="md:col-span-2 text-sm text-gray-600 flex items-center">
+                  Turnos actuales: {swap.a && `A: ${shifts[shiftDate]?.[swap.a] || 'Libre'}`} {" "}
+                  {swap.a && swap.b && <span className="mx-2">|</span>}
+                  {swap.b && `B: ${shifts[shiftDate]?.[swap.b] || 'Libre'}`}
+                </div>
+                <div className="flex justify-end">
+                  <button className={classBtn()} onClick={swapShifts}>Intercambiar</button>
+                </div>
+              </div>
+            </div>
+          </section>
+        )}
+      </main>
+
+      {editPunch && (
+        <div className="fixed inset-0 bg-black/30 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg p-4 border">
+            <div className="flex items-center justify-between mb-2">
+              <div className="font-semibold">Editar fichaje</div>
+              <button className="text-sm text-gray-500" onClick={() => setEditPunch(null)}>Cerrar</button>
+            </div>
+            <div className="grid gap-2">
+              <div>
+                <label className="block text-xs text-gray-500">Entrada</label>
+                <input
+                  type="datetime-local"
+                  className="border rounded-xl px-3 py-2 w-full"
+                  value={fmtDateTimeLocal(editPunch.in)}
+                  onChange={(e) => setEditPunch({ ...editPunch, in: parseLocalToISO(e.target.value) })}
+                />
+              </div>
+              <div>
+                <label className="block text-xs text-gray-500">Salida</label>
+                <input
+                  type="datetime-local"
+                  className="border rounded-xl px-3 py-2 w-full"
+                  value={fmtDateTimeLocal(editPunch.out)}
+                  onChange={(e) => setEditPunch({ ...editPunch, out: parseLocalToISO(e.target.value) })}
+                />
+              </div>
+              <div>
+                <label className="block text-xs text-gray-500">Nota</label>
+                <input
+                  className="border rounded-xl px-3 py-2 w-full"
+                  placeholder="Incidencia / comentario"
+                  value={editPunch.note || ""}
+                  onChange={(e) => setEditPunch({ ...editPunch, note: e.target.value })}
+                />
+              </div>
+              <div className="flex justify-end gap-2 pt-1">
+                <button className={classBtn(false)} onClick={() => setEditPunch(null)}>Cancelar</button>
+                <button className={classBtn()} onClick={saveEdit}>Guardar</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <footer className="py-10" />
+      
+      {/* Botón de demanda urgente */}
+      <button
+        onClick={() => alert("Demanda enviada, nos pondremos en contacto contigo cuanto antes")}
+        className="fixed bottom-6 right-6 bg-red-600 hover:bg-red-700 text-white px-4 py-3 rounded-full shadow-lg text-sm font-semibold"
+      >
+        Demanda urgente
+      </button>
+      
+    </div>
+  );
+}
+
+function PunchTable({ punches, employees, onEdit, onDelete, showActions }) {
+  const rows = punches
+    .slice()
+    .sort((a, b) => new Date(b.in || 0) - new Date(a.in || 0))
+    .map((p) => ({
+      ...p,
+      emp: employees.find((e) => e.id === p.employeeId),
+    }));
+
+  return (
+    <div className="overflow-auto">
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="text-left text-gray-500 border-b">
+            <th className="py-2 pr-2">Empleado</th>
+            <th className="py-2 pr-2">Entrada</th>
+            <th className="py-2 pr-2">Salida</th>
+            <th className="py-2 pr-2">Duración</th>
+            <th className="py-2 pr-2">Nota</th>
+            <th className="py-2 pr-2">Estado</th>
+            {showActions && <th className="py-2 pr-2" />}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.length === 0 ? (
+            <tr>
+              <td className="py-4 text-gray-500" colSpan={showActions ? 7 : 6}>
+                Sin registros aún.
+              </td>
+            </tr>
+          ) : (
+            rows.map((r) => {
+              const dIn = r.in ? new Date(r.in) : null;
+              const dOut = r.out ? new Date(r.out) : null;
+              const mins = dIn && dOut ? minutesDiff(dIn, dOut) : null;
+              const dur = mins != null ? `${Math.floor(mins / 60)}h ${mins % 60}m` : "—";
+              return (
+                <tr key={r.id} className="border-b last:border-0">
+                  <td className="py-2 pr-2">{r.emp?.name || "(empleado)"}</td>
+                  <td className="py-2 pr-2 font-mono">{fmtDateTimeLocal(r.in).replace("T", " ") || "-"}</td>
+                  <td className="py-2 pr-2 font-mono">{fmtDateTimeLocal(r.out).replace("T", " ") || "-"}</td>
+                  <td className="py-2 pr-2">{dur}</td>
+                  <td className="py-2 pr-2">{r.note || "-"}</td>
+                  <td className="py-2 pr-2">
+                    {r.corrected ? (
+                      <span className="px-2 py-1 rounded-full text-xs bg-blue-100 text-blue-800">Corregido</span>
+                    ) : r.out ? (
+                      <span className="px-2 py-1 rounded-full text-xs bg-green-100 text-green-800">Cerrado</span>
+                    ) : (
+                      <span className="px-2 py-1 rounded-full text-xs bg-yellow-100 text-yellow-800">Abierto</span>
+                    )}
+                  </td>
+                  {showActions && (
+                    <td className="py-2 pr-2">
+                      <div className="flex gap-2">
+                        <button className={classBtn()} onClick={() => onEdit && onEdit(r)}>Editar</button>
+                        <button className={classBtn(false)} onClick={() => onDelete && onDelete(r.id)}>Eliminar</button>
+                      </div>
+                    </td>
+                  )}
+                </tr>
+              );
+            })
+          )}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+// Montaje
+const root = ReactDOM.createRoot(document.getElementById('root'));
+root.render(<App />);
+  </script>
+</body>
+</html>
